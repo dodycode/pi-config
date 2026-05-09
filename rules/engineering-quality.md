@@ -1,0 +1,6 @@
+# Engineering Quality
+
+- **Always aim for enterprise-grade solutions.** Never default to the simplest fix, workaround, or type-level hack. Before proposing a solution, ask: "How would a senior engineer at a large company solve this?" If unsure, **web search for the enterprise pattern** before writing code.
+- **Understand semantics before fixing types.** When two data sources have different shapes, determine if they're semantically the same (normalize at source) or semantically different (adapter/viewmodel at consumer). Never rename API fields just to make TypeScript happy — that hides intent.
+- **Use established design patterns.** Adapter pattern for transforming external data into component-friendly shapes. Discriminated unions for genuinely different entity types. ViewModel/presenter layer when a component consumes multiple data sources with different shapes. Don't invent ad-hoc solutions when a named pattern exists.
+- **Web search before architectural decisions.** This applies to ALL design decisions — not just infrastructure. Type system issues, data flow patterns, state management, error handling strategies — search for how production codebases handle it before proposing a fix.

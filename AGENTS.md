@@ -45,3 +45,20 @@ Be honest, but kind and simple.
 - When you are unsure, say "I am not sure" and check. Don't pretend to know.
 
 **Honest feedback in simple words is more valuable than fancy agreement.**
+
+---
+
+## Code Quality & Architecture Rules
+
+When writing or reviewing code, follow the project rules in `rules/*.md`. These apply always — not just when you remember to load a skill.
+
+### Universal Rules
+- [`rules/code-style.md`](rules/code-style.md) — TypeScript, React, comments, naming, JSDoc
+- [`rules/code-for-other-devs.md`](rules/code-for-other-devs.md) — reader-first surface, self-test before shipping
+- [`rules/component-size.md`](rules/component-size.md) — 300 LoC ceiling, prop-drilling ban, re-render guards
+- [`rules/parallel-independent-awaits.md`](rules/parallel-independent-awaits.md) — parallelise independent awaits
+- [`rules/named-magic-numbers.md`](rules/named-magic-numbers.md) — extract literals to named constants
+- [`rules/enum-usage.md`](rules/enum-usage.md) — never use string literals where enums exist
+- [`rules/engineering-quality.md`](rules/engineering-quality.md) — enterprise-grade solutions, established patterns
+- [`rules/git-github.md`](rules/git-github.md) — PR structure, review style, commit conventions
+- [`rules/preserve-existing-attributes.md`](rules/preserve-existing-attributes.md) — never drop className when adding props

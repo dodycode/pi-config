@@ -1,0 +1,34 @@
+# Code Style
+
+- **Never use non-null assertions (`!`).** When TypeScript can't narrow inside a callback, extract the optional value to a `const` before the callback.
+- **Never suggest adding linter-ignore comments in ANY file or document** — source code, markdown, comments, or plan drafts. Linter-ignore is a last-resort escape hatch that signals "fix me later". Fix the narrowing / fix the type / fix the schema / fix the shape instead.
+- **Never "keep X layered on top" to avoid refactoring.** If a root construct at a validator ROOT needs to change, convert fully — don't layer the new shape over the old. Audit every caller, update every one, delete unused sub-schemas.
+- **Never use dynamic `await import()` for project modules.** Always use static top-level `import` statements. Dynamic imports are lazy, hard to trace, and bypass TypeScript's module resolution at compile time. The only exception is third-party libraries that genuinely require lazy loading.
+- **Interfaces/types at the top of the file.** All `interface` and `type` declarations must come before any function/const declarations — never interleave them between components or functions.
+- **Never hardcode return types or repeat type literals.** Extract shared type aliases when a union type appears in 2+ places. Don't hardcode return types on helper functions when TypeScript can infer them — let the inferred type be the source of truth. Exception: public API boundaries where explicit types improve readability.
+- **DRY shared types across files.** When the same type is used in multiple files, define it once in a shared types file and import it. Don't repeat the union in each consumer.
+- **Never use `condition ? {} : { props }` in spreads.** Use `...(!condition && { props })` instead. The empty object ternary is ugly and unnecessary.
+- Prefer TypeScript strict mode
+- Use functional components and hooks in React
+- Prefer server components by default in Next.js App Router
+- Use `const` over `let` where possible
+- Prefer named exports over default exports
+- **One React component per file. Non-negotiable.** Even if the second/third component is a "tiny internal helper", it goes in its own file under the same feature subfolder. The only exception: a component that is called exactly *once* from the file's main export AND is trivially inline (≤15 LoC, no hooks, no memo, no separate types).
+- **Never use IIFEs `{(() => { ... })()}` in JSX.** Use ternary conditionals, `&&` operators, or extract a variable/component instead.
+- **Never use nested `&&` blocks in JSX render guards.** When a condition has multiple parts, extract a named boolean variable above the return instead.
+- **Never assume API shapes from node_modules alone.** Always verify via web search (docs, changelogs, issues) before using library internals.
+- **Debounce user-triggered selection handlers.** In React, `onSelect`/`onClick` on dropdown items can fire multiple times before re-render removes the element. Wrap these handlers with `useDebouncedCallback` to prevent duplicate state updates.
+- **Always use `cn()` for conditional classNames.** Never use template literal string concatenation. Always use `cn("base", cond && "extra")`.
+- **Never use string parsing for date/time checks.** Use `dayjs()` utilities (`.hour()`, `.minute()`, `.diff()`, `.tz()`) instead of `indexOf("T")` / `substring` / `startsWith("00:00")`.
+- **Never leave empty no-op callbacks.** If removing logic makes a callback body empty, delete the entire callback property.
+- **Never use `pointer-events-none` on `<Link>` to fake a disabled state.** Keyboard navigation (Tab + Enter) still works. Instead, conditionally render `<Link>` when data exists and a `<span>` with disabled styling when it doesn't.
+- **Always use `{ leading: true, trailing: false }` on `useDebouncedCallback` for click/select handlers.** Leading-edge fires immediately and ignores duplicate clicks within the window. Only use trailing-edge for search/input handlers.
+- **Comments: 1-2 lines MAX, JSDoc is the only exception. Default is ZERO comments.** Treat every comment as debt the next reader pays. Before writing one, apply this hard test: *if I delete this comment right now, will the next reader (a) misread the code, (b) make a wrong fix, or (c) be unable to reproduce the intent?* If the answer to all three is "no", the comment doesn't belong.
+- **Never reference `filename:lineNumber` in committed source comments.** Line numbers drift with every edit. Reference symbols instead (`// see \`expandEventsForStack\``) — symbols survive renames via IDE refactoring.
+- **Never restate a cross-cutting rule as an inline comment on a single instance.** If a rule applies to *every* handler, every enum, every soft-delete query — singling out one site with a reminder comment is worse than no comment. Cross-cutting rules belong in the nearest rules doc, once.
+- **Never leave orphan narration comments** that don't document the line of code directly below them. Design-rationale narration about code that isn't adjacent goes in the PR description.
+- **JSDoc shape: default to one-line summary + `@param` / `@returns` tags only.** Long WHY paragraph is the EXCEPTION, capped at ≤3 lines / ~40 words. TypeScript handles types — never repeat `{string}` / `{Promise<X>}` in tags.
+- **Comments describe the FINAL STATE of the code, never the migration that produced it.** Strip every "we used to have X, now we have Y" pattern. The prior shape lives in git history.
+- **Variable / function names use plain English, not domain jargon.** Don't use obscure terminology in identifier names. Translate to what the code DOES, not the academic term for what it matches.
+- **Variable names must encode the difference, not the version.** When two variables coexist in scope and represent different shapes, name them by what makes them different — not by `v1`/`v2`, `legacy`/`new`, `old`/`new`, `a`/`b`, or `first`/`second`.
+- **Pair-name symmetry, shared-attribute encoding, redundant state split, key-string readability, one-sentence self-test.** See [`code-for-other-devs.md`](code-for-other-devs.md).

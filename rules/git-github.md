@@ -1,0 +1,25 @@
+# Git & GitHub
+
+- **Always use `gh api` for fetching GitHub data.** Never use WebFetch, web search extension, or web scraping for GitHub URLs.
+- **Always disable sparse checkout after operations that enable it.**
+- **Never reply to human PR reviewers via automated tools.** Draft reply text in the CLI output and show it to the user. They will post themselves. Bot/automated reviewers can be replied to directly.
+- **PR reviews: inline comments per finding, never a bulk review body.** When posting a PR review, every finding goes on the actual `file:line` it applies to. The top-level `body` is a one-line summary. Do NOT post a multi-section markdown summary as the review body.
+- **PR review findings = in-scope fixes for the current stack.** Default stance: every finding gets fixed on the introducing PR before merge. Do NOT write "track in a follow-up ticket" / "Phase 2 sweep" anywhere in review comments.
+- **Reply to PR comments AFTER commit + push, not before.** Always commit the fix, push, then reply referencing the fixing commit.
+- **Always target the project's default dev branch for PRs.**
+- **Always assign PRs to yourself.**
+- **Always use `--repo` flag with `gh pr create` on forked repos.**
+- Use conventional commit messages (`feat:`, `fix:`, `chore:`, etc.)
+- Don't auto-commit or push without asking
+- **Never exclude uncommitted changes from a commit without asking.** If there are modified files in the working tree, include ALL of them unless the user explicitly says to leave some out.
+- **PR descriptions: describe the final state vs the base branch.** Only mention things that are NEW or CHANGED. Never mention files/components that were created and deleted within the same stack.
+- **PR description structure: `## Problem` → `## Summary` → `## Sources`.**
+  - **Audience:** a developer from another team who has never seen this code.
+  - **`## Problem`** — what's happening + WHY it happens, in plain English. Open with the user-visible report. Include exactly ONE ASCII diagram of the failure timeline for non-trivial bugs.
+  - **`## Summary`** — HOW the fix works + WHERE the changes live. Lead with a single AFTER diagram comparable to the BEFORE diagram. Then a numbered list (3-5 items max) of WHAT changed. NEVER include a `### Changes` section listing touched files — GitHub's "Files changed" tab already shows that.
+  - **`## Sources`** — official docs, bug-pattern write-ups, comparable issues. One bullet per source.
+- **PR Test Plan section: focus on PROBLEMS only.**
+  - All-pass session: literally one bullet — `- Tested.`
+  - Open-failure session: one `- Tested.` bullet PLUS one bullet per open problem.
+- **Never add `Co-Authored-By` trailers** to git commit messages.
+- **Never add "Generated with Claude Code"** or any AI attribution footers to PR descriptions.
