@@ -60,13 +60,6 @@ python3 -m venv ~/.pi/agent/skills/pdf-reader/.venv
 ~/.pi/agent/skills/pdf-reader/.venv/bin/pip install -r ~/.pi/agent/skills/pdf-reader/requirements.txt
 ```
 
-Google search tools use env vars:
-
-```bash
-export GOOGLE_SEARCH_API_KEY="..."
-export GOOGLE_CSE_ID="..."
-```
-
 ## Contents
 
 ### Extensions
