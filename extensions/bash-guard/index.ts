@@ -86,8 +86,33 @@ function isInDir(p: string, dir: string): boolean {
 	return resolved === resolvedDir || resolved.startsWith(resolvedDir + path.sep);
 }
 
-function isRmRf(risk: Risk): boolean {
-	return risk.reasons.some((r) => r.includes("recursive delete")) && risk.reasons.some((r) => r.includes("forced delete"));
+function isRemovalCommand(tokens: Token[]): boolean {
+	const segments = splitOnOps(tokens, ["&&", "||", ";"]);
+	for (const seg of segments) {
+		const args = tokensToStrings(seg);
+		if (args.length === 0) continue;
+
+		// Handle sudo prefix
+		let cmdIdx = 0;
+		if (args[0] === "sudo" && args.length > 1) {
+			cmdIdx = 1;
+		}
+		const cmd = args[cmdIdx];
+		const rest = args.slice(cmdIdx + 1);
+
+		if (cmd === "rm" || cmd === "rmdir" || cmd === "unlink") {
+			return true;
+		}
+		if (cmd === "find" && rest.includes("-delete")) {
+			return true;
+		}
+		if (cmd === "git") {
+			const sub = rest[0];
+			if (sub === "rm") return true;
+			if (sub === "clean") return true;
+		}
+	}
+	return false;
 }
 
 function analyzeSegment(seg: Token[]): Risk | null {
@@ -485,13 +510,9 @@ export default function (pi: ExtensionAPI) {
 		if (!isToolCallEventType("bash", event)) return;
 
 		const command = event.input.command;
-		const risk = analyzeBashCommand(command);
-		if (!risk) return;
 
-		// Path-based bypass rules:
-		// - /tmp is always safe (even rm -rf)
-		// - Inside home (~) is safe EXCEPT for rm -rf
-		// - Outside home keeps existing confirmation behavior
+		// Step 1 — Path-based smart bypass (before any risk analysis).
+		// /tmp is always safe. Inside home is safe UNLESS it is a removal command.
 		let tokens: Token[];
 		try {
 			tokens = shellParse(command) as Token[];
@@ -504,8 +525,12 @@ export default function (pi: ExtensionAPI) {
 			if (allInTmp) return;
 
 			const allInHome = paths.every((p) => isInDir(p, os.homedir()));
-			if (allInHome && !isRmRf(risk)) return;
+			if (allInHome && !isRemovalCommand(tokens)) return;
 		}
+
+		// Step 2 — Full heuristic risk analysis.
+		const risk = analyzeBashCommand(command);
+		if (!risk) return;
 
 		const now = Date.now();
 		const lastAbort = recentlyAborted.get(command);
