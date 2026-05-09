@@ -3,6 +3,8 @@ import { DynamicBorder, isToolCallEventType } from "@mariozechner/pi-coding-agen
 import type { SelectItem } from "@mariozechner/pi-tui";
 import { Container, SelectList, Text } from "@mariozechner/pi-tui";
 import { parse as shellParse } from "shell-quote";
+import * as path from "path";
+import * as os from "os";
 
 type Severity = "high" | "medium";
 
@@ -44,6 +46,48 @@ function hasFlag(args: string[], flag: string): boolean {
 
 function anyArgStartsWith(args: string[], prefix: string): boolean {
 	return args.some((a) => a.startsWith(prefix));
+}
+
+function looksLikePath(arg: string): boolean {
+	if (/^https?:\/\//.test(arg)) return false;
+	return arg.includes("/") || arg.startsWith("~") || arg.startsWith(".");
+}
+
+function extractPotentialPaths(tokens: Token[]): string[] {
+	const paths: string[] = [];
+	const segments = splitOnOps(tokens, ["&&", "||", ";"]);
+	for (const seg of segments) {
+		const args = tokensToStrings(seg);
+		if (args.length === 0) continue;
+		const rest = args.slice(1);
+		for (const arg of rest) {
+			if (arg.startsWith("-")) continue;
+			if (!looksLikePath(arg)) continue;
+			paths.push(arg);
+		}
+	}
+	return paths;
+}
+
+function resolvePath(p: string): string {
+	const home = os.homedir();
+	if (p.startsWith("~")) {
+		return path.join(home, p.slice(1));
+	}
+	if (path.isAbsolute(p)) {
+		return p;
+	}
+	return path.join(process.cwd(), p);
+}
+
+function isInDir(p: string, dir: string): boolean {
+	const resolved = path.resolve(resolvePath(p));
+	const resolvedDir = path.resolve(dir);
+	return resolved === resolvedDir || resolved.startsWith(resolvedDir + path.sep);
+}
+
+function isRmRf(risk: Risk): boolean {
+	return risk.reasons.some((r) => r.includes("recursive delete")) && risk.reasons.some((r) => r.includes("forced delete"));
 }
 
 function analyzeSegment(seg: Token[]): Risk | null {
@@ -398,6 +442,19 @@ export default function (pi: ExtensionAPI) {
 		pi.on("tool_call", async (event) => {
 			if (!isToolCallEventType("bash", event)) return;
 			const command = event.input.command;
+
+			// Allow anything that only touches /tmp
+			let tokens: Token[];
+			try {
+				tokens = shellParse(command) as Token[];
+			} catch {
+				tokens = [];
+			}
+			const paths = extractPotentialPaths(tokens);
+			if (paths.length > 0 && paths.every((p) => isInDir(p, "/tmp"))) {
+				return;
+			}
+
 			for (const { pattern, reason } of HEADLESS_BLOCKED) {
 				if (pattern.test(command)) {
 					return {
@@ -430,6 +487,25 @@ export default function (pi: ExtensionAPI) {
 		const command = event.input.command;
 		const risk = analyzeBashCommand(command);
 		if (!risk) return;
+
+		// Path-based bypass rules:
+		// - /tmp is always safe (even rm -rf)
+		// - Inside home (~) is safe EXCEPT for rm -rf
+		// - Outside home keeps existing confirmation behavior
+		let tokens: Token[];
+		try {
+			tokens = shellParse(command) as Token[];
+		} catch {
+			tokens = [];
+		}
+		const paths = extractPotentialPaths(tokens);
+		if (paths.length > 0) {
+			const allInTmp = paths.every((p) => isInDir(p, "/tmp"));
+			if (allInTmp) return;
+
+			const allInHome = paths.every((p) => isInDir(p, os.homedir()));
+			if (allInHome && !isRmRf(risk)) return;
+		}
 
 		const now = Date.now();
 		const lastAbort = recentlyAborted.get(command);
