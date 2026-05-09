@@ -49,6 +49,11 @@ Extensions with npm deps:
 - `web-fetch/`
 - `web-search/`
 
+Single-file extensions (copy directly, no deps):
+
+- `ask-user-question.ts`
+- `rtk.ts` (requires [RTK](https://rtk-ai.app) installed)
+
 Optional system tools:
 
 
@@ -66,13 +71,21 @@ python3 -m venv ~/.pi/agent/skills/pdf-reader/.venv
 
 - `ask-user-question.ts`
 - `bash-guard/`
+- `rtk.ts`
 - `subagents/`
 - `web-fetch/`
 - `web-search/`
 
 ### Skills
 
+- `animations/`
+- `drizzle-query-style/`
+- `figma-fidelity/`
 - `pdf-reader/`
 - `reddit/`
 - `session-memory/`
 - `stop-slop/`
+- `tailwind-colors/`
+- `testing/`
+- `trpc-structure/`
+- `validation-messages/`
