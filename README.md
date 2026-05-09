@@ -46,16 +46,12 @@ Extension-local npm deps are kept with the extension. Run `npm install` only in 
 Extensions with npm deps:
 
 - `bash-guard/`
-- `filechanges/`
 - `web-fetch/`
+- `web-search/`
 
 Optional system tools:
 
-```bash
-brew install yt-dlp ffmpeg
-```
 
-Used by `youtube-search/` and `video-extract/`.
 
 PDF reader setup after copying `skills/pdf-reader/`:
 
@@ -64,14 +60,12 @@ python3 -m venv ~/.pi/agent/skills/pdf-reader/.venv
 ~/.pi/agent/skills/pdf-reader/.venv/bin/pip install -r ~/.pi/agent/skills/pdf-reader/requirements.txt
 ```
 
-Google search tools use either env vars:
+Google search tools use env vars:
 
 ```bash
 export GOOGLE_SEARCH_API_KEY="..."
 export GOOGLE_CSE_ID="..."
 ```
-
-or a local `auth.json` copied from `auth.example.json`.
 
 ## Contents
 
@@ -79,22 +73,13 @@ or a local `auth.json` copied from `auth.example.json`.
 
 - `ask-user-question.ts`
 - `bash-guard/`
-- `context.ts`
-- `custom-header.ts`
-- `filechanges/`
-- `google-image-search/`
-- `md-link.ts`
-- `memory.ts`
 - `subagents/`
-- `video-extract/`
 - `web-fetch/`
 - `web-search/`
-- `youtube-search/`
-- `zz-read-only-mode.ts`
 
 ### Skills
 
-- `orchestrator/`
 - `pdf-reader/`
 - `reddit/`
+- `session-memory/`
 - `stop-slop/`

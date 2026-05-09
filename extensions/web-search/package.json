@@ -1,0 +1,11 @@
+{
+	"name": "pi-web-search",
+	"private": true,
+	"type": "module",
+	"pi": {
+		"extensions": ["./index.ts"]
+	},
+	"dependencies": {
+		"linkedom": "^0.16.0"
+	}
+}

@@ -1,8 +1,9 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { Text } from "@mariozechner/pi-tui";
-import * as fs from "node:fs";
-import * as path from "node:path";
+import { Text } from "@earendil-works/pi-tui";
+import { parseHTML } from "linkedom";
+
+// ── Types ────────────────────────────────────────────────────────────
 
 interface SearchResult {
 	title: string;
@@ -26,67 +27,13 @@ interface BuiltSearchQuery {
 	site?: string;
 }
 
-async function googleSearch(
-	query: string,
-	count: number,
-	apiKey: string,
-	cseId: string,
-	signal?: AbortSignal,
-): Promise<SearchResult[]> {
-	const num = Math.min(count, 10);
-	const url = new URL("https://www.googleapis.com/customsearch/v1");
-	url.searchParams.set("key", apiKey);
-	url.searchParams.set("cx", cseId);
-	url.searchParams.set("q", query);
-	url.searchParams.set("num", String(num));
+// ── Constants ────────────────────────────────────────────────────────
 
-	const resp = await fetch(url.toString(), { signal });
-	if (!resp.ok) {
-		const body = await resp.text();
-		throw new Error(`Google API ${resp.status}: ${body.slice(0, 200)}`);
-	}
+const USER_AGENT =
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+const SEARCH_TIMEOUT_MS = 15000;
 
-	const data = (await resp.json()) as {
-		items?: Array<{
-			title: string;
-			link: string;
-			snippet?: string;
-		}>;
-	};
-
-	if (!data.items || data.items.length === 0) return [];
-
-	return data.items.map((item) => ({
-		title: item.title,
-		url: item.link,
-		snippet: item.snippet?.replace(/\n/g, " ") ?? "",
-	}));
-}
-
-const EXT_DIR = path.dirname(new URL(import.meta.url).pathname);
-const AUTH_PATH = path.join(EXT_DIR, "auth.json");
-
-function loadCredentials(): { apiKey: string; cseId: string } | null {
-	const envApiKey = process.env.GOOGLE_SEARCH_API_KEY ?? process.env.GOOGLE_API_KEY;
-	const envCseId = process.env.GOOGLE_CSE_ID ?? process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID;
-	if (envApiKey && envCseId) return { apiKey: envApiKey, cseId: envCseId };
-
-	if (!fs.existsSync(AUTH_PATH)) return null;
-	try {
-		const config = JSON.parse(fs.readFileSync(AUTH_PATH, "utf-8"));
-		const apiKey = config.google_search_api_key as string;
-		const cseId = config.google_cse_id as string;
-		if (apiKey && cseId) return { apiKey, cseId };
-	} catch {}
-	return null;
-}
-
-function formatResults(results: SearchResult[]): string {
-	if (results.length === 0) return "No results found.";
-	return results
-		.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`)
-		.join("\n\n");
-}
+// ── Query Builders ───────────────────────────────────────────────────
 
 function stripWrappingQuotes(value: string): string {
 	return value.length >= 2 && value.startsWith('"') && value.endsWith('"')
@@ -109,10 +56,8 @@ function cleanQuery(value?: string): string | undefined {
 
 function normalizeSite(site?: string): string | undefined {
 	if (typeof site !== "string") return undefined;
-
 	let value = site.trim().replace(/^site:/i, "").trim();
 	if (!value) return undefined;
-
 	try {
 		const candidate = /^[a-z]+:\/\//i.test(value)
 			? value
@@ -120,7 +65,6 @@ function normalizeSite(site?: string): string | undefined {
 		const url = new URL(candidate);
 		if (url.hostname) value = url.hostname;
 	} catch {}
-
 	return value.replace(/\/+$/, "") || undefined;
 }
 
@@ -161,12 +105,238 @@ function buildSearchQuery(args: StructuredSearchArgs): BuiltSearchQuery {
 	};
 }
 
+function formatResults(results: SearchResult[]): string {
+	if (results.length === 0) return "No results found.";
+	return results
+		.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`)
+		.join("\n\n");
+}
+
+function resolveUrl(base: string, href: string): string {
+	if (!href) return "";
+	if (/^[a-z]+:\/\//i.test(href)) return href;
+	try {
+		return new URL(href, base).toString();
+	} catch {
+		return href;
+	}
+}
+
+function makeSearchSignal(
+	signal?: AbortSignal,
+	ms = SEARCH_TIMEOUT_MS,
+): AbortSignal {
+	const timeout = AbortSignal.timeout(ms);
+	return signal ? AbortSignal.any([timeout, signal]) : timeout;
+}
+
+// ── Search Providers ─────────────────────────────────────────────────
+
+async function searchBrave(
+	query: string,
+	count: number,
+	signal?: AbortSignal,
+): Promise<SearchResult[] | null> {
+	const url = new URL("https://search.brave.com/search");
+	url.searchParams.set("q", query);
+
+	try {
+		const resp = await fetch(url.toString(), {
+			signal: makeSearchSignal(signal),
+			headers: {
+				"User-Agent": USER_AGENT,
+				Accept:
+					"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+				"Accept-Language": "en-US,en;q=0.9",
+				"Accept-Encoding": "gzip, deflate, br",
+				"Cache-Control": "no-cache",
+			},
+		});
+		if (!resp.ok) return null;
+
+		const html = await resp.text();
+		const { document } = parseHTML(html);
+
+		const results: SearchResult[] = [];
+		const items = document.querySelectorAll('.snippet[data-type="web"]');
+
+		for (const item of items) {
+			const linkEl = item.querySelector("a.l1");
+			if (!linkEl) continue;
+
+			const href = resolveUrl(
+				url.toString(),
+				linkEl.getAttribute("href") || "",
+			);
+			const titleEl = item.querySelector(".search-snippet-title");
+			const title =
+				titleEl?.getAttribute("title")?.trim() ||
+				titleEl?.textContent?.trim() ||
+				"";
+
+			let snippet = "";
+			const contentEl = item.querySelector(".generic-snippet .content");
+			if (contentEl) {
+				const clone = contentEl.cloneNode(true) as Element;
+				clone.querySelectorAll(".t-secondary").forEach((el) => el.remove());
+				snippet = clone.textContent?.trim() || "";
+			}
+
+			if (href && title) {
+				results.push({ title, url: href, snippet });
+			}
+			if (results.length >= count) break;
+		}
+
+		return results.length > 0 ? results : null;
+	} catch {
+		return null;
+	}
+}
+
+async function searchBing(
+	query: string,
+	count: number,
+	signal?: AbortSignal,
+): Promise<SearchResult[] | null> {
+	const url = new URL("https://www.bing.com/search");
+	url.searchParams.set("q", query);
+	url.searchParams.set("count", String(Math.min(count + 5, 50)));
+
+	try {
+		const resp = await fetch(url.toString(), {
+			signal: makeSearchSignal(signal),
+			headers: {
+				"User-Agent": USER_AGENT,
+				Accept:
+					"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+				"Accept-Language": "en-US,en;q=0.9",
+				"Accept-Encoding": "gzip, deflate, br",
+				"Cache-Control": "no-cache",
+			},
+		});
+		if (!resp.ok) return null;
+
+		const html = await resp.text();
+		const { document } = parseHTML(html);
+
+		const results: SearchResult[] = [];
+		const items = document.querySelectorAll(".b_algo");
+
+		for (const item of items) {
+			const linkEl = item.querySelector("h2 a");
+			if (!linkEl) continue;
+
+			const href = resolveUrl(
+				url.toString(),
+				linkEl.getAttribute("href") || "",
+			);
+			const title = linkEl.textContent?.trim() || "";
+
+			const snippetEl = item.querySelector(".b_caption p");
+			const snippet = snippetEl?.textContent?.trim() || "";
+
+			if (href && title) {
+				results.push({ title, url: href, snippet });
+			}
+			if (results.length >= count) break;
+		}
+
+		return results.length > 0 ? results : null;
+	} catch {
+		return null;
+	}
+}
+
+async function searchDuckDuckGo(
+	query: string,
+	count: number,
+	signal?: AbortSignal,
+): Promise<SearchResult[] | null> {
+	const url = new URL("https://html.duckduckgo.com/html/");
+	url.searchParams.set("q", query);
+
+	try {
+		const resp = await fetch(url.toString(), {
+			signal: makeSearchSignal(signal),
+			headers: {
+				"User-Agent": USER_AGENT,
+				Accept:
+					"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+				"Accept-Language": "en-US,en;q=0.9",
+			},
+		});
+		if (!resp.ok) return null;
+
+		const html = await resp.text();
+		if (
+			html.includes("anomaly") ||
+			html.includes("Unfortunately, bots use")
+		) {
+			return null;
+		}
+
+		const { document } = parseHTML(html);
+
+		const results: SearchResult[] = [];
+		const items = document.querySelectorAll(".result");
+
+		for (const item of items) {
+			const linkEl = item.querySelector(".result__a");
+			if (!linkEl) continue;
+
+			const href = resolveUrl(
+				url.toString(),
+				linkEl.getAttribute("href") || "",
+			);
+			const title = linkEl.textContent?.trim() || "";
+
+			const snippetEl = item.querySelector(".result__snippet");
+			const snippet = snippetEl?.textContent?.trim() || "";
+
+			if (href && title) {
+				results.push({ title, url: href, snippet });
+			}
+			if (results.length >= count) break;
+		}
+
+		return results.length > 0 ? results : null;
+	} catch {
+		return null;
+	}
+}
+
+async function performSearch(
+	query: string,
+	count: number,
+	signal?: AbortSignal,
+): Promise<{ results: SearchResult[]; provider: string }> {
+	const brave = await searchBrave(query, count, signal);
+	if (brave && brave.length > 0) {
+		return { results: brave, provider: "brave" };
+	}
+
+	const bing = await searchBing(query, count, signal);
+	if (bing && bing.length > 0) {
+		return { results: bing, provider: "bing" };
+	}
+
+	const ddg = await searchDuckDuckGo(query, count, signal);
+	if (ddg && ddg.length > 0) {
+		return { results: ddg, provider: "duckduckgo" };
+	}
+
+	return { results: [], provider: "none" };
+}
+
+// ── Extension Registration ───────────────────────────────────────────
+
 export default function (pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "web_search",
 		label: "Web Search",
 		description:
-			"Search the web via Google Custom Search API. Build one search per call from a base query string, exact phrases, exclusions, and an optional site. Returns title, URL, and snippet.",
+			"Search the web via Brave, Bing, or DuckDuckGo. Build one search per call from a base query string, exact phrases, exclusions, and an optional site. Returns title, URL, and snippet.",
 		promptSnippet:
 			"Search the web via a query string plus optional exactPhrases, excludeTerms, and site. Use one tool call per search angle.",
 		promptGuidelines: [
@@ -184,7 +354,7 @@ export default function (pi: ExtensionAPI) {
 			exactPhrases: Type.Optional(
 				Type.Array(Type.String(), {
 					description:
-						"Exact phrases to match. Each item becomes a quoted phrase in the final Google query.",
+						"Exact phrases to match. Each item becomes a quoted phrase in the final search query.",
 				}),
 			),
 			excludeTerms: Type.Optional(
@@ -201,7 +371,8 @@ export default function (pi: ExtensionAPI) {
 			),
 			count: Type.Optional(
 				Type.Number({
-					description: "Number of results to return (default: 5, max: 10)",
+					description:
+						"Number of results to return (default: 5, max: 10)",
 					minimum: 1,
 					maximum: 10,
 				}),
@@ -209,20 +380,11 @@ export default function (pi: ExtensionAPI) {
 		}),
 
 		async execute(_toolCallId, params: StructuredSearchArgs, signal) {
-			const creds = loadCredentials();
-			if (!creds) {
-				throw new Error(
-					`Missing Google Custom Search credentials. Set GOOGLE_SEARCH_API_KEY and GOOGLE_CSE_ID, or create ${AUTH_PATH} from auth.example.json. Get credentials from https://developers.google.com/custom-search/v1/introduction`,
-				);
-			}
-
 			const count = params.count ?? 5;
 			const built = buildSearchQuery(params);
-			const results = await googleSearch(
+			const { results, provider } = await performSearch(
 				built.query,
 				count,
-				creds.apiKey,
-				creds.cseId,
 				signal,
 			);
 
@@ -240,6 +402,7 @@ export default function (pi: ExtensionAPI) {
 					excludeTerms: built.excludeTerms,
 					site: built.site,
 					resultCount: results.length,
+					provider,
 				},
 			};
 		},
@@ -295,10 +458,15 @@ export default function (pi: ExtensionAPI) {
 			const details = result.details as {
 				composedQuery?: string;
 				resultCount?: number;
+				provider?: string;
 			};
+			const providerLabel =
+				details?.provider && details.provider !== "none"
+					? ` via ${details.provider}`
+					: "";
 			const status = theme.fg(
 				"success",
-				`${details?.resultCount ?? 0} results`,
+				`${details?.resultCount ?? 0} results${providerLabel}`,
 			);
 			if (!expanded) {
 				text.setText(status);
@@ -308,7 +476,9 @@ export default function (pi: ExtensionAPI) {
 			const content =
 				result.content.find((c) => c.type === "text")?.text || "";
 			const preview =
-				content.length > 500 ? content.slice(0, 500) + "..." : content;
+				content.length > 500
+					? content.slice(0, 500) + "..."
+					: content;
 			const queryLine = details?.composedQuery
 				? theme.fg("dim", `query: ${details.composedQuery}`)
 				: "";

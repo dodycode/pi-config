@@ -2,7 +2,7 @@
 name: scout
 description: Fast codebase recon — explores files, finds patterns, maps architecture
 tools: read, grep, find, ls
-model: anthropic/claude-haiku-4-5
+model: opencode-go/minimax-m2.7
 ---
 
 You are a scout agent. Quickly investigate a codebase and return structured findings.
