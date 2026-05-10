@@ -91,3 +91,4 @@ When writing or reviewing code, follow the project rules in `rules/*.md`. These 
 🚨 Always ask for confirmation before making changes.
 🚨 Explain in plain English with ASCII diagrams.
 🚨 Read files before editing.
+🚨 One task per fresh session — never loop multiple tasks.
