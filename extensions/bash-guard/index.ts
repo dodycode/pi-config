@@ -1,7 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { DynamicBorder, isToolCallEventType } from "@mariozechner/pi-coding-agent";
-import type { SelectItem } from "@mariozechner/pi-tui";
-import { Container, SelectList, Text } from "@mariozechner/pi-tui";
+import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 import { parse as shellParse } from "shell-quote";
 import * as path from "path";
 import * as os from "os";
@@ -379,45 +377,11 @@ async function promptRunOrAbort(ctx: any, command: string, risk: Risk): Promise<
 	if (!ctx.hasUI) return "abort";
 
 	const reasonsText = risk.reasons.map((r) => `• ${r}`).join("\n");
-	const header = `Command flagged as ${risk.severity.toUpperCase()} risk:`;
-	const body = `${header}\n\n${reasonsText}\n\nCommand:\n${command}`;
+	const title = `Potentially destructive bash command (${risk.severity.toUpperCase()} risk)`;
+	const message = `${reasonsText}\n\nCommand:\n${command}`;
 
-	const items: SelectItem[] = [
-		{ value: "run", label: "Run", description: "Execute the command" },
-		{ value: "abort", label: "Abort", description: "Block this command" },
-	];
-
-	const choice = await ctx.ui.custom<"run" | "abort">((tui, theme, _kb, done) => {
-		const container = new Container();
-		container.addChild(new DynamicBorder((s: string) => theme.fg("warning", s)));
-		container.addChild(new Text(theme.fg("warning", theme.bold("Potentially destructive bash command")), 1, 0));
-		container.addChild(new Text(body, 1, 0));
-
-		const list = new SelectList(items, items.length, {
-			selectedPrefix: (t) => theme.fg("accent", t),
-			selectedText: (t) => theme.fg("accent", t),
-			description: (t) => theme.fg("muted", t),
-			scrollInfo: (t) => theme.fg("dim", t),
-			noMatch: (t) => theme.fg("warning", t),
-		});
-
-		list.onSelect = (item) => done(item.value as "run" | "abort");
-		list.onCancel = () => done("abort");
-		container.addChild(list);
-
-		container.addChild(new DynamicBorder((s: string) => theme.fg("warning", s)));
-
-		return {
-			render: (w) => container.render(w),
-			invalidate: () => container.invalidate(),
-			handleInput: (data) => {
-				list.handleInput(data);
-				tui.requestRender();
-			},
-		};
-	}, { overlay: true });
-
-	return choice ?? "abort";
+	const choice = await ctx.ui.select(title, ["Run", "Abort"]);
+	return choice === "Run" ? "run" : "abort";
 }
 
 // PI_SUBAGENT_DEPTH is 0 (or unset) in the main session and >= 1 in spawned subagent processes.

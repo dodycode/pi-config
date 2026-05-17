@@ -83,6 +83,7 @@ When writing or reviewing code, follow the project rules in `rules/*.md`. These 
 - [`rules/engineering-quality.md`](rules/engineering-quality.md) — enterprise-grade solutions, established patterns
 - [`rules/git-github.md`](rules/git-github.md) — PR structure, review style, commit conventions
 - [`rules/preserve-existing-attributes.md`](rules/preserve-existing-attributes.md) — never drop className when adding props
+- [`rules/pnpm-timeout.md`](rules/pnpm-timeout.md) — 20s timeout on all pnpm commands
 
 ---
 
@@ -92,3 +93,4 @@ When writing or reviewing code, follow the project rules in `rules/*.md`. These 
 🚨 Explain in plain English with ASCII diagrams.
 🚨 Read files before editing.
 🚨 One task per fresh session — never loop multiple tasks.
+🚨 [pnpm-install.md](rules/pnpm-install.md) — always confirm before `pnpm install`
